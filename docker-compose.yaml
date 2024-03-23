@@ -1,0 +1,72 @@
+version: "2"
+services:
+  envoy-haproxy:
+    build: .
+    entrypoint: /usr/local/bin/envoy
+    command:
+      - -c
+      - /conf/config.yaml
+      - --log-level
+      - info
+      - --service-cluster
+      - envoy
+      - --service-node
+      - envoy
+    container_name: envoy-haproxy
+    expose:
+      - "80"
+    networks:
+      envoy-http-proxy:
+        ipv4_address: 172.19.0.3
+    restart: always
+    volumes:
+      - ./envoy-haproxy.yaml:/conf/config.yaml
+  haproxy:
+    image: haproxy:alpine
+    container_name: haproxy
+    restart: always
+    ports:
+      - "80"
+      - "1936"
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    networks:
+      envoy-http-proxy:
+        ipv4_address: 172.19.0.4
+  podinfo:
+    expose:
+      - "9898"
+    container_name: podinfo
+    networks:
+      envoy-http-proxy:
+        ipv4_address: 172.19.0.5
+    restart: always
+    image: stefanprodan/podinfo
+  envoy-direct:
+    build: .
+    entrypoint: /usr/local/bin/envoy
+    command:
+      - -c
+      - /conf/config.yaml
+      - --log-level
+      - info
+      - --service-cluster
+      - envoy
+      - --service-node
+      - envoy
+    expose:
+      - "80"
+    container_name: envoy-direct
+    networks:
+      envoy-http-proxy:
+        ipv4_address: 172.19.0.6
+    restart: always
+    volumes:
+      - ./envoy-direct.yaml:/conf/config.yaml
+networks:
+  envoy-http-proxy:
+    driver: bridge
+    ipam:
+     config:
+       - subnet: 172.19.0.0/16
+         gateway: 172.19.0.1
