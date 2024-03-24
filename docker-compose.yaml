@@ -88,7 +88,9 @@ services:
       envoy-http-proxy:
         ipv4_address: 172.19.0.21
     volumes:
-      - ./grafana:/etc/grafana/provisioning/datasources
+      - ./grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./grafana/dashboard.yaml:/etc/grafana/provisioning/dashboards/main.yaml
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
 
   # podinfo web application
   podinfo:
