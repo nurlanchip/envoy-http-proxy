@@ -1,5 +1,6 @@
 version: "2"
 services:
+  # envoy -> haproxy reverse proxy -> podinfo
   envoy-haproxy:
     build: .
     entrypoint: /usr/local/bin/envoy
@@ -15,6 +16,7 @@ services:
     container_name: envoy-haproxy
     expose:
       - "80"
+      - "9901"
     networks:
       envoy-http-proxy:
         ipv4_address: 172.19.0.3
@@ -33,15 +35,8 @@ services:
     networks:
       envoy-http-proxy:
         ipv4_address: 172.19.0.4
-  podinfo:
-    expose:
-      - "9898"
-    container_name: podinfo
-    networks:
-      envoy-http-proxy:
-        ipv4_address: 172.19.0.5
-    restart: always
-    image: stefanprodan/podinfo
+
+  # envoy -> podinfo
   envoy-direct:
     build: .
     entrypoint: /usr/local/bin/envoy
@@ -56,6 +51,7 @@ services:
       - envoy
     expose:
       - "80"
+      - "9901"
     container_name: envoy-direct
     networks:
       envoy-http-proxy:
@@ -63,6 +59,68 @@ services:
     restart: always
     volumes:
       - ./envoy-direct.yaml:/conf/config.yaml
+
+  # monitoring tooling
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    expose:
+      - "9090"
+    restart: unless-stopped
+    networks:
+      envoy-http-proxy:
+        ipv4_address: 172.19.0.20
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prom_data:/prometheus
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    expose:
+      - "3000"
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=grafana
+    networks:
+      envoy-http-proxy:
+        ipv4_address: 172.19.0.21
+    volumes:
+      - ./grafana:/etc/grafana/provisioning/datasources
+
+  # podinfo web application
+  podinfo:
+    expose:
+      - "9898"
+    container_name: podinfo
+    networks:
+      envoy-http-proxy:
+        ipv4_address: 172.19.0.100
+    restart: always
+    image: stefanprodan/podinfo
+
+  # nginx web server
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    expose:
+      - "80"
+    networks:
+      envoy-http-proxy:
+        ipv4_address: 172.19.0.110
+
+  # apache2 web server
+  apache2:
+    image: httpd:latest
+    container_name: apache2
+    expose:
+      - "80"
+    networks:
+      envoy-http-proxy:
+        ipv4_address: 172.19.0.120
+
 networks:
   envoy-http-proxy:
     driver: bridge
@@ -70,3 +128,6 @@ networks:
      config:
        - subnet: 172.19.0.0/16
          gateway: 172.19.0.1
+
+volumes:
+  prom_data:
