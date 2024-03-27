@@ -4,6 +4,8 @@ stats_config:
       regex: "(_phase=([a-z_]+))"
     - tag_name: rule_id
       regex: "(_ruleid=([0-9]+))"
+    - tag_name: authority
+      regex: "(_authority=([0-9a-z.:]+))"
 
 static_resources:
   listeners:
@@ -63,12 +65,21 @@ static_resources:
             virtual_hosts:
             - name: direct
               domains:
-              - "*"
+              - "test.com"
               routes:
               - match:
                   prefix: "/"
                 route:
                   cluster: podinfo
+                  idle_timeout: 15s
+            - name: direct
+              domains:
+              - "foo.com"
+              routes:
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: test
                   idle_timeout: 15s
           http_filters:
           - name: envoy.filters.http.wasm
@@ -88,7 +99,19 @@ static_resources:
                             "SecRuleEngine On",
                             "SecDebugLogLevel 3",
                             "Include @owasp_crs/*.conf"
+                          ],
+                          "test-rule": [
+                            "Include @demo-conf",
+                            "Include @crs-setup-conf",
+                            "Include @owasp_crs/REQUEST-901-INITIALIZATION.conf",
+                            "Include @owasp_crs/REQUEST-941-APPLICATION-ATTACK-XSS.conf",
+                            "Include @owasp_crs/REQUEST-949-BLOCKING-EVALUATION.conf",
+                            "SecRule"
                           ]
+                      },
+                      "per_authority_directives": {
+                        "foo.com":"coreruleset",
+                        "test.com":"test-rule"
                       },
                       "default_directives": "coreruleset"
                     }
@@ -116,6 +139,20 @@ static_resources:
               socket_address:
                 address: 172.19.0.100
                 port_value: 9898
+  - name: test
+    per_connection_buffer_limit_bytes: 3276
+    connect_timeout: 1s
+    type: STATIC
+    load_assignment:
+      cluster_name: test
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 172.19.0.100
+                port_value: 9898
+
 admin:
   address:
     socket_address:
